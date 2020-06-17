@@ -111,3 +111,18 @@ add_executable(mono_euroc
 Examples/Monocular/mono_euroc.cc)
 target_link_libraries(mono_euroc ${PROJECT_NAME})
 
+# Build personal scripts
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Scripts)
+
+add_executable(visdrone
+Scripts/visdrone.cc)
+target_link_libraries(visdrone ${PROJECT_NAME})
+
+add_executable(testOrbMatcher
+Scripts/testOrbMatcher.cc)
+target_link_libraries(testOrbMatcher ${PROJECT_NAME})
+
+add_executable(kittiTracking
+Scripts/kittiTracking.cc)
+target_link_libraries(kittiTracking ${PROJECT_NAME})

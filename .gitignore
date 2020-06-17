@@ -21,4 +21,8 @@ Vocabulary/ORBvoc.txt
 build/
 *~
 lib/
-
+Outputs/
+Scripts/visdroneFiles/
+Scripts/testOrbMatcher
+Scripts/visdrone
+Scripts/*.txt
