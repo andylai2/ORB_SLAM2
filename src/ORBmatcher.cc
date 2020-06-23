@@ -28,6 +28,7 @@
 #include "Thirdparty/DBoW2/DBoW2/FeatureVector.h"
 
 #include<stdint-gcc.h>
+#include<iostream>
 
 using namespace std;
 
@@ -515,6 +516,9 @@ int ORBmatcher::SearchForInitialization(Frame &F1, Frame &F2, vector<cv::Point2f
     for(size_t i1=0, iend1=vnMatches12.size(); i1<iend1; i1++)
         if(vnMatches12[i1]>=0)
             vbPrevMatched[i1]=F2.mvKeysUn[vnMatches12[i1]].pt;
+
+    cout << "ORBmatcher Search for Initialization between frame " << F1.mnId << " and frame " << F2.mnId << endl;
+    // cout << "vnMatches12 size" << vnMatches12.size() << endl;
 
     return nmatches;
 }
@@ -1328,6 +1332,8 @@ int ORBmatcher::SearchBySim3(KeyFrame *pKF1, KeyFrame *pKF2, vector<MapPoint*> &
 int ORBmatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame, const float th, const bool bMono)
 {
     int nmatches = 0;
+
+    cout << "ORBMatcher Search by Projection between frame " << CurrentFrame.mnId << " and frame " << LastFrame.mnId << endl;
 
     // Rotation Histogram (to check rotation consistency)
     vector<int> rotHist[HISTO_LENGTH];

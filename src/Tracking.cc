@@ -237,6 +237,7 @@ cv::Mat Tracking::GrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, const d
 
 cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im, const double &timestamp)
 {
+    cout << "Grab Image Monocular" << endl;
     mImGray = im;
 
     if(mImGray.channels()==3)
@@ -265,7 +266,8 @@ cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im, const double &timestamp)
 }
 
 void Tracking::Track()
-{
+{   
+    cout << "Track" << endl;
     if(mState==NO_IMAGES_YET)
     {
         mState = NOT_INITIALIZED;
@@ -562,6 +564,7 @@ void Tracking::StereoInitialization()
 
 void Tracking::MonocularInitialization()
 {
+    cout << "Monocular Initialization" << endl;
 
     if(!mpInitializer)
     {
@@ -581,6 +584,8 @@ void Tracking::MonocularInitialization()
 
             fill(mvIniMatches.begin(),mvIniMatches.end(),-1);
 
+            cout << "Setting Reference frame at frame " << mCurrentFrame.mnId << endl;
+
             return;
         }
     }
@@ -589,6 +594,7 @@ void Tracking::MonocularInitialization()
         // Try to initialize
         if((int)mCurrentFrame.mvKeys.size()<=100)
         {
+            cout << "    Not enough mvKeys" << endl;
             delete mpInitializer;
             mpInitializer = static_cast<Initializer*>(NULL);
             fill(mvIniMatches.begin(),mvIniMatches.end(),-1);
@@ -599,9 +605,47 @@ void Tracking::MonocularInitialization()
         ORBmatcher matcher(0.9,true);
         int nmatches = matcher.SearchForInitialization(mInitialFrame,mCurrentFrame,mvbPrevMatched,mvIniMatches,100);
 
+        // Save mvIniMatches to a file
+
+        ofstream f;
+        f.open("Outputs/IniMatches.txt",ios_base::app);
+
+        for(size_t i = 0; i < mvIniMatches.size(); i++)
+        {
+            f << mvIniMatches[i] << " ";
+        }
+        f << endl;
+        f.close();
+
+        // saved mvbPrevMatched to a file
+
+        // ofstream f;
+        f.open("Outputs/PrevMatched.txt",ios_base::app);
+
+        for(size_t i = 0; i < mvbPrevMatched.size(); i++)
+        {
+            f << mvbPrevMatched[i].x << " " << mvbPrevMatched[i].y << " ";
+        }
+        f << endl;
+        f.close();
+
+        // ofstream f;
+        // f.open("Outputs/KeyPoints.txt",ios_base::app);
+
+        // for(size_t i = 0; i < mvKeysUn.size(); i++)    
+        // {
+        //     f << mvKeysUn[i].pt.x << " " << mvKeysUn[i].pt.y << " ";
+        // }
+        // f << endl;
+        // f.close();
+
+        cout << "    Number of matches: " << nmatches << endl;
+
         // Check if there are enough correspondences
         if(nmatches<100)
         {
+            cout << "    Not enough correspondences" << endl;
+            cout << "    Only " << nmatches << " correspondences" << endl;
             delete mpInitializer;
             mpInitializer = static_cast<Initializer*>(NULL);
             return;
@@ -609,7 +653,7 @@ void Tracking::MonocularInitialization()
 
         cv::Mat Rcw; // Current Camera Rotation
         cv::Mat tcw; // Current Camera Translation
-        vector<bool> vbTriangulated; // Triangulated Correspondences (mvIniMatches)
+        vector<bool> vbTriangulated; // Triangulated Correspondences (mvIniMatches)"
 
         if(mpInitializer->Initialize(mCurrentFrame, mvIniMatches, Rcw, tcw, mvIniP3D, vbTriangulated))
         {
@@ -647,6 +691,13 @@ void Tracking::CreateInitialMapMonocular()
     // Insert KFs in the map
     mpMap->AddKeyFrame(pKFini);
     mpMap->AddKeyFrame(pKFcur);
+    // cout << "mvIniMatches ";
+    // for(size_t i=0; i<mvIniMatches.size();i++)
+    // {
+
+    // cout << " " << mvIniMatches[i];
+    // }
+    // cout << endl;
 
     // Create MapPoints and asscoiate to keyframes
     for(size_t i=0; i<mvIniMatches.size();i++)
@@ -734,6 +785,7 @@ void Tracking::CreateInitialMapMonocular()
     mpMap->mvpKeyFrameOrigins.push_back(pKFini);
 
     mState=OK;
+    cout << "Created Initial Map at frame " << mCurrentFrame.mnId << endl;
 }
 
 void Tracking::CheckReplacedInLastFrame()
@@ -756,6 +808,7 @@ void Tracking::CheckReplacedInLastFrame()
 
 bool Tracking::TrackReferenceKeyFrame()
 {
+    cout << "Track Reference Key Frame" << endl;
     // Compute Bag of Words vector
     mCurrentFrame.ComputeBoW();
 
@@ -765,6 +818,8 @@ bool Tracking::TrackReferenceKeyFrame()
     vector<MapPoint*> vpMapPointMatches;
 
     int nmatches = matcher.SearchByBoW(mpReferenceKF,mCurrentFrame,vpMapPointMatches);
+    cout << "Tracking Reference Key Frame" << endl;
+    cout << "vpMapPointMatches" << endl;
 
     if(nmatches<15)
         return false;
@@ -794,12 +849,14 @@ bool Tracking::TrackReferenceKeyFrame()
                 nmatchesMap++;
         }
     }
+    // cout << nmatchesMap
 
     return nmatchesMap>=10;
 }
 
 void Tracking::UpdateLastFrame()
 {
+    cout << "Update Last Frame" << endl;
     // Update pose according to reference keyframe
     KeyFrame* pRef = mLastFrame.mpReferenceKF;
     cv::Mat Tlr = mlRelativeFramePoses.back();
@@ -866,6 +923,7 @@ void Tracking::UpdateLastFrame()
 
 bool Tracking::TrackWithMotionModel()
 {
+    cout << "Track With Motion Model" << endl; 
     ORBmatcher matcher(0.9,true);
 
     // Update last frame pose according to its reference keyframe
@@ -929,6 +987,7 @@ bool Tracking::TrackWithMotionModel()
 
 bool Tracking::TrackLocalMap()
 {
+    cout << "Track Local Map" << endl;
     // We have an estimation of the camera pose and some map points tracked in the frame.
     // We retrieve the local map and try to find matches to points in the local map.
 
@@ -1062,6 +1121,7 @@ bool Tracking::NeedNewKeyFrame()
 
 void Tracking::CreateNewKeyFrame()
 {
+    cout << "Create New Key Frame" << endl;
     if(!mpLocalMapper->SetNotStop(true))
         return;
 
@@ -1142,6 +1202,7 @@ void Tracking::CreateNewKeyFrame()
 
 void Tracking::SearchLocalPoints()
 {
+    cout << "Search Local Points" << endl;
     // Do not search map points already matched
     for(vector<MapPoint*>::iterator vit=mCurrentFrame.mvpMapPoints.begin(), vend=mCurrentFrame.mvpMapPoints.end(); vit!=vend; vit++)
     {
