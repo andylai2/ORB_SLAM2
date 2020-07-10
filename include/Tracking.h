@@ -61,6 +61,7 @@ public:
     cv::Mat GrabImageStereo(const cv::Mat &imRectLeft,const cv::Mat &imRectRight, const double &timestamp);
     cv::Mat GrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, const double &timestamp);
     cv::Mat GrabImageMonocular(const cv::Mat &im, const double &timestamp);
+    cv::Mat GrabImageMonocularMasked(const cv::Mat &im, const cv::Mat &mask, const double &timestamp);
 
     void SetLocalMapper(LocalMapping* pLocalMapper);
     void SetLoopClosing(LoopClosing* pLoopClosing);
@@ -73,7 +74,6 @@ public:
 
     // Use this function if you have deactivated local mapping and you only want to localize the camera.
     void InformOnlyTracking(const bool &flag);
-
 
 public:
 
@@ -95,6 +95,7 @@ public:
     // Current Frame
     Frame mCurrentFrame;
     cv::Mat mImGray;
+    cv::Mat mMask;
 
     // Initialization Variables (Monocular)
     std::vector<int> mvIniLastMatches;
@@ -143,6 +144,11 @@ protected:
 
     bool NeedNewKeyFrame();
     void CreateNewKeyFrame();
+
+    // Get unique values in CV::Mat, used for the mask
+    std::vector<int> MatUnique(const cv::Mat &input, bool sorted);
+    void TestKeypointMaskAssociation();
+    std::string type2str(int type);
 
     // In case of performing only localization, this flag is true when there are no matches to
     // points in the map. Still tracking will continue if there are enough matches with temporal points.
@@ -204,6 +210,7 @@ protected:
     //Last Frame, KeyFrame and Relocalisation Info
     KeyFrame* mpLastKeyFrame;
     Frame mLastFrame;
+    Frame mLastLastFrame; // Added by Andy
     unsigned int mnLastKeyFrameId;
     unsigned int mnLastRelocFrameId;
 
@@ -214,6 +221,7 @@ protected:
     bool mbRGB;
 
     list<MapPoint*> mlpTemporalPoints;
+
 };
 
 } //namespace ORB_SLAM

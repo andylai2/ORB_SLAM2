@@ -87,6 +87,8 @@ public:
     bool PosInGrid(const cv::KeyPoint &kp, int &posX, int &posY);
 
     vector<size_t> GetFeaturesInArea(const float &x, const float  &y, const float  &r, const int minLevel=-1, const int maxLevel=-1) const;
+    // Get features that correspond to a particular mask
+    vector<size_t> GetFeaturesInMask(const cv::Mat &Mask, const int MaskId);
 
     // Search a match for each keypoint in the left image to a keypoint in the right image.
     // If there is a match, depth is computed and the right coordinate associated to the left keypoint is stored.

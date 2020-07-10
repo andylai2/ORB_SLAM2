@@ -279,7 +279,98 @@ cv::Mat System::TrackMonocular(const cv::Mat &im, const double &timestamp)
     f << endl;
     f.close();
 
-    cout << Tcw << endl;
+    f.open("Outputs/Poses.txt",ios_base::app);
+    if(!Tcw.empty())
+    {
+        f << setprecision(12) << Tcw.at<float>(0,0) << " " << Tcw.at<float>(0,1) << " " << Tcw.at<float>(0,2) << " " << Tcw.at<float>(0,3) << " "
+        << Tcw.at<float>(1,0) << " " << Tcw.at<float>(1,1) << " " << Tcw.at<float>(1,2) << " "<< Tcw.at<float>(1,3) << " "
+        << Tcw.at<float>(2,0) << " " << Tcw.at<float>(2,1) << " " << Tcw.at<float>(2,2) << " "<< Tcw.at<float>(2,3) << " "
+        << Tcw.at<float>(3,0) << " " << Tcw.at<float>(3,1) << " " << Tcw.at<float>(3,2) << " "<< Tcw.at<float>(3,3) << endl;
+    }
+    else
+    {
+        f << " " << endl;
+    }
+    f.close();
+    return Tcw;
+}
+
+cv::Mat System::TrackMonocularMasked(const cv::Mat &im, const cv::Mat &mask, const double &timestamp)
+{
+    if(mSensor!=MONOCULAR)
+    {
+        cerr << "ERROR: you called TrackMonocular but input sensor was not set to Monocular." << endl;
+        exit(-1);
+    }
+
+    // Check mode change
+    {
+        unique_lock<mutex> lock(mMutexMode);
+        if(mbActivateLocalizationMode)
+        {
+            mpLocalMapper->RequestStop();
+
+            // Wait until Local Mapping has effectively stopped
+            while(!mpLocalMapper->isStopped())
+            {
+                usleep(1000);
+            }
+
+            mpTracker->InformOnlyTracking(true);
+            mbActivateLocalizationMode = false;
+        }
+        if(mbDeactivateLocalizationMode)
+        {
+            mpTracker->InformOnlyTracking(false);
+            mpLocalMapper->Release();
+            mbDeactivateLocalizationMode = false;
+        }
+    }
+
+    // Check reset
+    {
+    unique_lock<mutex> lock(mMutexReset);
+    if(mbReset)
+    {
+        mpTracker->Reset();
+        mbReset = false;
+    }
+    }
+
+    cv::Mat Tcw = mpTracker->GrabImageMonocularMasked(im,mask,timestamp);
+
+    unique_lock<mutex> lock2(mMutexState);
+    mTrackingState = mpTracker->mState;
+    mTrackedMapPoints = mpTracker->mCurrentFrame.mvpMapPoints;
+    mTrackedKeyPointsUn = mpTracker->mCurrentFrame.mvKeysUn;
+    // cv::KeyPoint tmpKeyPoint0 = mTrackedKeyPointsUn[0];
+    // // cout << tmpKeyPoint0.pt << endl;
+    // cout << "Number keypoints: " << mTrackedKeyPointsUn.size() << endl;
+    // cout << "Number map points: " << mTrackedMapPoints.size() << endl;
+
+    ofstream f;
+    f.open("Outputs/KeyPoints.txt",ios_base::app);
+
+    for(size_t i = 0; i < mTrackedKeyPointsUn.size(); i++)    
+    {
+        f << mTrackedKeyPointsUn[i].pt.x << " " << mTrackedKeyPointsUn[i].pt.y << " ";
+    }
+    f << endl;
+    f.close();
+
+    f.open("Outputs/Poses.txt",ios_base::app);
+    if(!Tcw.empty())
+    {
+        f << setprecision(12) << Tcw.at<float>(0,0) << " " << Tcw.at<float>(0,1) << " " << Tcw.at<float>(0,2) << " " << Tcw.at<float>(0,3) << " "
+        << Tcw.at<float>(1,0) << " " << Tcw.at<float>(1,1) << " " << Tcw.at<float>(1,2) << " "<< Tcw.at<float>(1,3) << " "
+        << Tcw.at<float>(2,0) << " " << Tcw.at<float>(2,1) << " " << Tcw.at<float>(2,2) << " "<< Tcw.at<float>(2,3) << " "
+        << Tcw.at<float>(3,0) << " " << Tcw.at<float>(3,1) << " " << Tcw.at<float>(3,2) << " "<< Tcw.at<float>(3,3) << endl;
+    }
+    else
+    {
+        f << " " << endl;
+    }
+    f.close();
     return Tcw;
 }
 

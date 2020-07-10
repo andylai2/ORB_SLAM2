@@ -1668,4 +1668,135 @@ int ORBmatcher::DescriptorDistance(const cv::Mat &a, const cv::Mat &b)
     return dist;
 }
 
+// MY FUNCTIONS 
+
+int ORBmatcher::ThreeFrameMatches(Frame &F1, Frame &F2, Frame &F3, vector<int> &vnMatches12, vector<int> &vnMatches13, int windowSize)
+{
+    // Find matches that align between all three frames
+    int nmatches=0;
+    int nmatches3=0;
+    vnMatches12 = vector<int>(F1.mvKeysUn.size(),-1);
+    vnMatches13 = vector<int>(F1.mvKeysUn.size(),-1);
+
+    vector<int> vMatchedDistance12(F2.mvKeysUn.size(),INT_MAX);
+    vector<int> vnMatches21(F2.mvKeysUn.size(),-1);
+
+    vector<int> vMatchedDistance13(F3.mvKeysUn.size(),INT_MAX);
+    vector<int> vnMatches31(F3.mvKeysUn.size(),-1); 
+
+    for(size_t i1=0, iend1=F1.mvKeysUn.size(); i1<iend1; i1++)
+    {
+        cv::KeyPoint kp1 = F1.mvKeysUn[i1];
+        int level1 = kp1.octave;
+        if(level1>0)
+            continue;
+
+        vector<size_t> vIndices2 = F2.GetFeaturesInArea(kp1.pt.x,kp1.pt.y, windowSize,level1,level1);
+
+        if(vIndices2.empty())
+            continue;
+
+        cv::Mat d1 = F1.mDescriptors.row(i1);
+
+        int bestDist = INT_MAX;
+        int bestDist2 = INT_MAX;
+        int bestIdx2 = -1;
+
+        for(vector<size_t>::iterator vit2=vIndices2.begin(); vit2!=vIndices2.end(); vit2++)
+        {
+            size_t i2 = *vit2;
+
+            cv::Mat d2 = F2.mDescriptors.row(i2);
+
+            int dist = DescriptorDistance(d1,d2);
+
+            if(vMatchedDistance12[i2]<=dist)
+                continue;
+
+            if(dist<bestDist)
+            {
+                bestDist2=bestDist;
+                bestDist=dist;
+                bestIdx2=i2;
+            }
+            else if(dist<bestDist2)
+            {
+                bestDist2=dist;
+            }
+        }
+
+        if(bestDist<=TH_LOW)
+        {
+            if(bestDist<(float)bestDist2*mfNNratio)
+            {
+                if(vnMatches21[bestIdx2]>=0)
+                {
+                    vnMatches12[vnMatches21[bestIdx2]]=-1;
+                    nmatches--;
+                }
+                vnMatches12[i1]=bestIdx2;
+                vnMatches21[bestIdx2]=i1;
+                vMatchedDistance12[bestIdx2]=bestDist;
+                nmatches++;
+
+                // Now that Frame 2 Registered a match, we search frame 3 for a match
+                cv::KeyPoint kp2 = F2.mvKeysUn[bestIdx2];
+
+                vector<size_t> vIndices3 = F3.GetFeaturesInArea(kp2.pt.x,kp2.pt.y,windowSize,level1,level1);
+
+                if(vIndices3.empty())
+                    continue; 
+
+                int bestDistNew = INT_MAX;
+                int bestDistNew2 = INT_MAX;
+                int bestIdx3 = -1;
+
+                for(vector<size_t>::iterator vit3=vIndices3.begin();vit3!=vIndices3.end();vit3++)
+                {
+                    size_t i3 = *vit3;
+
+                    cv::Mat d3 = F3.mDescriptors.row(i3);
+
+                    int distNew = DescriptorDistance(d1,d3);
+
+                    if(vMatchedDistance13[i3]<=distNew)
+                        continue;
+
+                    if(distNew<bestDistNew)
+                    {
+                        bestDistNew2=bestDistNew;
+                        bestDistNew=distNew;
+                        bestIdx3=i3;
+                    }
+                    else if(distNew<bestDistNew2)
+                    {
+                        bestDistNew2=distNew;
+                    }
+                }
+
+                if(bestDistNew<=TH_LOW)
+                {
+                    if(bestDistNew<(float)bestDistNew2*mfNNratio)
+                    {
+                        if(vnMatches31[bestIdx3]>=0)
+                        {
+                            vnMatches13[vnMatches31[bestIdx3]]=-1;
+                            nmatches3--;
+                        }
+                        vnMatches13[i1]=bestIdx3;
+                        vnMatches31[bestIdx3]=i1;
+                        vMatchedDistance13[bestIdx3]=bestDistNew;
+                        nmatches3++;
+                    }
+                }
+
+            }
+        }
+
+    }
+
+    return nmatches;
+}
+
+
 } //namespace ORB_SLAM

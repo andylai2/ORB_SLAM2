@@ -265,6 +265,37 @@ cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im, const double &timestamp)
     return mCurrentFrame.mTcw.clone();
 }
 
+cv::Mat Tracking::GrabImageMonocularMasked(const cv::Mat &im, const cv::Mat &mask, const double &timestamp)
+{
+    cout << "Grab Image Monocular" << endl;
+    mImGray = im;
+    mMask = mask;
+
+    if(mImGray.channels()==3)
+    {
+        if(mbRGB)
+            cvtColor(mImGray,mImGray,CV_RGB2GRAY);
+        else
+            cvtColor(mImGray,mImGray,CV_BGR2GRAY);
+    }
+    else if(mImGray.channels()==4)
+    {
+        if(mbRGB)
+            cvtColor(mImGray,mImGray,CV_RGBA2GRAY);
+        else
+            cvtColor(mImGray,mImGray,CV_BGRA2GRAY);
+    }
+
+    if(mState==NOT_INITIALIZED || mState==NO_IMAGES_YET)
+        mCurrentFrame = Frame(mImGray,timestamp,mpIniORBextractor,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
+    else
+        mCurrentFrame = Frame(mImGray,timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
+
+    Track();
+
+    return mCurrentFrame.mTcw.clone();
+}
+
 void Tracking::Track()
 {   
     cout << "Track" << endl;
@@ -277,6 +308,9 @@ void Tracking::Track()
 
     // Get Map Mutex -> Map cannot be changed
     unique_lock<mutex> lock(mpMap->mMutexMapUpdate);
+
+    TestKeypointMaskAssociation();
+
 
     if(mState==NOT_INITIALIZED)
     {
@@ -316,6 +350,33 @@ void Tracking::Track()
                     if(!bOK)
                         bOK = TrackReferenceKeyFrame();
                 }
+                /*
+                Andy's Code Block
+                */
+
+                // vector<int> vTmpMatchLast(mLastFrame.mvKeysUn.size(),-1);
+                // vector<int> vTmpMatchCurr(mLastFrame.mvKeysUn.size(),-1);
+
+                // ORBmatcher myMatcher(0.9,false);
+                // myMatcher.ThreeFrameMatches(mLastLastFrame,mLastFrame,mCurrentFrame,vTmpMatchLast,vTmpMatchCurr,10);
+
+                // cout << "vTmpMatchLast: ";
+                // for(size_t i = 0; i < vTmpMatchLast.size();i++)
+                // {
+                //     cout << vTmpMatchLast[i] << " ";
+                // }
+                // cout << endl;
+                // cout << "vTmpMatchCurr: ";
+                // for(size_t i = 0; i < vTmpMatchCurr.size();i++)
+                // {
+                //     cout << vTmpMatchCurr[i] << " ";
+                // }
+                // cout << endl;
+                
+                
+                /*
+                Andy's Code Block
+                */
             }
             else
             {
@@ -484,6 +545,7 @@ void Tracking::Track()
         if(!mCurrentFrame.mpReferenceKF)
             mCurrentFrame.mpReferenceKF = mpReferenceKF;
 
+        mLastLastFrame = Frame(mLastFrame);
         mLastFrame = Frame(mCurrentFrame);
     }
 
@@ -573,6 +635,7 @@ void Tracking::MonocularInitialization()
         {
             mInitialFrame = Frame(mCurrentFrame);
             mLastFrame = Frame(mCurrentFrame);
+            mLastLastFrame = Frame(mLastFrame);
             mvbPrevMatched.resize(mCurrentFrame.mvKeysUn.size());
             for(size_t i=0; i<mCurrentFrame.mvKeysUn.size(); i++)
                 mvbPrevMatched[i]=mCurrentFrame.mvKeysUn[i].pt;
@@ -602,7 +665,8 @@ void Tracking::MonocularInitialization()
         }
 
         // Find correspondences
-        ORBmatcher matcher(0.9,true);
+        //ORBmatcher matcher(0.9,true);
+        ORBmatcher matcher(0.9,false); // Changed to increase number of matches of dynamic obj.
         int nmatches = matcher.SearchForInitialization(mInitialFrame,mCurrentFrame,mvbPrevMatched,mvIniMatches,100);
 
         // Save mvIniMatches to a file
@@ -691,13 +755,6 @@ void Tracking::CreateInitialMapMonocular()
     // Insert KFs in the map
     mpMap->AddKeyFrame(pKFini);
     mpMap->AddKeyFrame(pKFcur);
-    // cout << "mvIniMatches ";
-    // for(size_t i=0; i<mvIniMatches.size();i++)
-    // {
-
-    // cout << " " << mvIniMatches[i];
-    // }
-    // cout << endl;
 
     // Create MapPoints and asscoiate to keyframes
     for(size_t i=0; i<mvIniMatches.size();i++)
@@ -776,6 +833,7 @@ void Tracking::CreateInitialMapMonocular()
     mpReferenceKF = pKFcur;
     mCurrentFrame.mpReferenceKF = pKFcur;
 
+    mLastLastFrame = Frame(mLastFrame);
     mLastFrame = Frame(mCurrentFrame);
 
     mpMap->SetReferenceMapPoints(mvpLocalMapPoints);
@@ -819,7 +877,6 @@ bool Tracking::TrackReferenceKeyFrame()
 
     int nmatches = matcher.SearchByBoW(mpReferenceKF,mCurrentFrame,vpMapPointMatches);
     cout << "Tracking Reference Key Frame" << endl;
-    cout << "vpMapPointMatches" << endl;
 
     if(nmatches<15)
         return false;
@@ -880,7 +937,10 @@ void Tracking::UpdateLastFrame()
     }
 
     if(vDepthIdx.empty())
+    {
+        cout << "Update Last Frame did nothing" << endl;
         return;
+    }
 
     sort(vDepthIdx.begin(),vDepthIdx.end());
 
@@ -1401,6 +1461,7 @@ void Tracking::UpdateLocalKeyFrames()
 
 bool Tracking::Relocalization()
 {
+    cout << "Relocalizing" << endl;
     // Compute Bag of Words Vector
     mCurrentFrame.ComputeBoW();
 
@@ -1649,5 +1710,56 @@ void Tracking::InformOnlyTracking(const bool &flag)
 }
 
 
+vector<int> Tracking::MatUnique(const cv::Mat &input, bool sorted)
+{
+
+    vector<int> out;
+    for(int y = 0; y < input.rows; y++)
+    {
+        for(int x = 0; x < input.cols; x++)
+        {
+            int val = input.at<uchar>(y,x);
+            if(find(out.begin(), out.end(), val) == out.end() )
+            {
+                if(val <= 255)
+                {
+                    out.push_back(val);
+                }
+            }
+        }
+    }
+    if(sorted)
+        sort(out.begin(),out.end());
+    return out;
+}
+
+void Tracking::TestKeypointMaskAssociation()
+{
+    vector<int> maskIds = MatUnique(mMask, true);
+    ofstream f;
+    f.open("Outputs/MaskKeyPoints.txt",ios_base::app);
+    for(size_t i = 1; i < maskIds.size(); i++)
+    {
+        vector<size_t> vObjKeys = mCurrentFrame.GetFeaturesInMask(mMask,maskIds[i]);
+        cout << "MaskID " << maskIds[i] << " with " << vObjKeys.size() << " keypoints" << endl;
+        if(vObjKeys.empty())
+            cout << "No Keypoints matched to ID" << endl;
+        for(size_t j = 0; j < vObjKeys.size(); j++)
+        {
+            f << vObjKeys[j] << " ";
+        }
+        f<< "; ";
+    }
+    f << endl;
+    f.close();
+    // vector<size_t> vObjKeys = mCurrentFrame.GetFeaturesInMask(mMask,maskIds[1]);
+    // cout << "MaskID: " << maskIds[1] << endl;
+    // for(size_t i = ; i < vObjKeys.size();i++)
+    // {
+    //     cout << vObjKeys[i] << " ";
+    // }
+    // cout << endl;
+}
 
 } //namespace ORB_SLAM
+

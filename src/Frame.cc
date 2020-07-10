@@ -379,6 +379,24 @@ vector<size_t> Frame::GetFeaturesInArea(const float &x, const float  &y, const f
     return vIndices;
 }
 
+vector<size_t> Frame::GetFeaturesInMask(const cv::Mat &Mask, const int MaskId)
+{
+    vector<size_t> vIndices;
+    vIndices.reserve(N);
+
+    for(size_t i = 0; i < mvKeysUn.size(); i++)
+    {
+        int x = round(mvKeysUn[i].pt.x);
+        int y = round(mvKeysUn[i].pt.y);
+        int MaskValue = (int)Mask.at<uchar>(y,x);
+        // cout << MaskValue << " ";
+        if(MaskValue == MaskId)
+            vIndices.push_back(i);
+    }
+    // cout << endl;
+    return vIndices;
+}
+
 bool Frame::PosInGrid(const cv::KeyPoint &kp, int &posX, int &posY)
 {
     posX = round((kp.pt.x-mnMinX)*mfGridElementWidthInv);

@@ -37,29 +37,41 @@ int main(int argc, char **argv)
 {
     if(argc != 2)
     {
-        cerr << endl << "Usage: ./kittiTracking path_to_sequence" << endl;
+        cerr << endl << "Usage: ./kittiTracking sequence_id" << endl;
         return 1;
     }
 
     remove("Outputs/IniMatches.txt");
     remove("Outputs/KeyPoints.txt");
+    remove("Outputs/PrevMatched.txt");
+    remove("Outputs/Poses.txt");
+    remove("Outputs/MaskKeyPoints.txt");
+
+    string vocabFile = "Vocabulary/ORBvoc.txt";
+    string settingsFile = "Examples/Monocular/KITTI03.yaml";
+    string imageDir = "/home/andylai2/group-data/kitti_data/data_tracking_image_2/training/image_02/";
+    string maskDir = "/home/andylai2/group-data/kitti_data/data_tracking_image_2/training/masks/";
 
     // Retrieve paths to images
+    string sequenceId = argv[1];
+    string strFile = imageDir + "/" + sequenceId + "/" + sequenceId + ".txt";
     vector<string> vstrImageFilenames;
+    vector<string> vstrMaskFilenames;
     vector<double> vTimestamps;
-    // string strFile = string(argv[3])+"/rgb.txt";
-    string tmpArgString = argv[1];
-    tmpArgString.pop_back();
-    int tmpBeginIdx = tmpArgString.rfind("/");
-    string seqName = tmpArgString.substr(tmpBeginIdx + 1);
-
-    string strFile = tmpArgString + "/" + seqName + ".txt";
     LoadImages(strFile, vstrImageFilenames, vTimestamps);
 
     int nImages = vstrImageFilenames.size();
 
-    string vocabFile = "Vocabulary/ORBvoc.txt";
-    string settingsFile = "Examples/Monocular/KITTI03.yaml";
+
+    // cv::Mat mask = cv::imread(maskFile,0);
+    // vector<uint> uniqueObjs = matUnique(mask, true);
+    // cout << mask.at<uint>(0,0) << endl;
+    // cout << "Mask Unique Id's: ";
+    // for(size_t i = 0; i < uniqueObjs.size(); i++)
+    // {
+    //     cout << uniqueObjs[i] << " ";
+    // }
+    // cout << endl;
 
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
     ORB_SLAM2::System SLAM(vocabFile,settingsFile,ORB_SLAM2::System::MONOCULAR,true);
@@ -74,21 +86,34 @@ int main(int argc, char **argv)
 
     // Main loop
     cv::Mat im;
+    cv::Mat mask;
     cout << "Starting main loop" << endl << endl;
-    // for(int ni=0; ni<nImages; ni++)
-    for(int ni = 0; ni < 5; ni++)
+
+    int frameIndices[] = {200,201};
+    for(size_t i=0; i<sizeof(frameIndices); i++)
+    // for(int ni = 0; ni < 50; ni++);
     {
         // Read image from file
 
-        im = cv::imread(string(argv[1])+"/"+vstrImageFilenames[ni],CV_LOAD_IMAGE_UNCHANGED);
+        int ni = frameIndices[i];
+        // im = cv::imread(string(argv[1])+"/"+vstrImageFilenames[ni],CV_LOAD_IMAGE_UNCHANGED);
+        im = cv::imread(imageDir+sequenceId+"/"+vstrImageFilenames[ni],CV_LOAD_IMAGE_UNCHANGED);
+        mask = cv::imread(maskDir+sequenceId+"/"+vstrImageFilenames[ni],0);
         double tframe = vTimestamps[ni];
 
         if(im.empty())
         {
             cerr << endl << "Failed to load image at: "
-                 << string(argv[1]) << "/" << vstrImageFilenames[ni] << endl;
+                 << imageDir << sequenceId << "/" << vstrImageFilenames[ni] << endl;
             return 1;
         }
+        if(mask.empty())
+        {
+            cerr << endl << "Failed to load mask at: "
+                 << maskDir << sequenceId << "/" << vstrImageFilenames[ni] << endl;
+            return 1;
+        }
+
 
 #ifdef COMPILEDWITHC11
         std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
@@ -99,7 +124,7 @@ int main(int argc, char **argv)
         cout << "-------" << endl;
         cout << "Processing frame " << ni << endl;
         // Pass the image to the SLAM system
-        SLAM.TrackMonocular(im,tframe);
+        SLAM.TrackMonocularMasked(im,mask,tframe);
 
 #ifdef COMPILEDWITHC11
         std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
@@ -138,17 +163,15 @@ int main(int argc, char **argv)
 
     // Save camera trajectory
     SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
-    SLAM.SaveKeyFrameKeyPointsTUM();
 
     return 0;
 }
+
 
 void LoadImages(const string &strFile, vector<string> &vstrImageFilenames, vector<double> &vTimestamps)
 {
     ifstream f;
     f.open(strFile.c_str());
-
-    cout << strFile << endl;
 
     while(!f.eof())
     {
