@@ -62,9 +62,11 @@ int main(int argc, char **argv)
 
     // Main loop
     cv::Mat im;
+    cout << "Starting main loop" << endl << endl;
     for(int ni=0; ni<nImages; ni++)
     {
         // Read image from file
+
         im = cv::imread(string(argv[3])+"/"+vstrImageFilenames[ni],CV_LOAD_IMAGE_UNCHANGED);
         double tframe = vTimestamps[ni];
 
@@ -81,6 +83,8 @@ int main(int argc, char **argv)
         std::chrono::monotonic_clock::time_point t1 = std::chrono::monotonic_clock::now();
 #endif
 
+        cout << "-------" << endl;
+        cout << "Processing frame " << ni << endl;
         // Pass the image to the SLAM system
         SLAM.TrackMonocular(im,tframe);
 
@@ -121,6 +125,7 @@ int main(int argc, char **argv)
 
     // Save camera trajectory
     SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
+    SLAM.SaveKeyFrameKeyPointsTUM();
 
     return 0;
 }

@@ -41,8 +41,9 @@ Frame::Frame(const Frame &frame)
      mTimeStamp(frame.mTimeStamp), mK(frame.mK.clone()), mDistCoef(frame.mDistCoef.clone()),
      mbf(frame.mbf), mb(frame.mb), mThDepth(frame.mThDepth), N(frame.N), mvKeys(frame.mvKeys),
      mvKeysRight(frame.mvKeysRight), mvKeysUn(frame.mvKeysUn),  mvuRight(frame.mvuRight),
-     mvDepth(frame.mvDepth), mBowVec(frame.mBowVec), mFeatVec(frame.mFeatVec),
-     mDescriptors(frame.mDescriptors.clone()), mDescriptorsRight(frame.mDescriptorsRight.clone()),
+     mvDepth(frame.mvDepth), mBowVec(frame.mBowVec), mFeatVec(frame.mFeatVec), mvObjBowVecs(frame.mvObjBowVecs),
+     mvvObjKeys(frame.mvvObjKeys), mvKeyObjLabels(frame.mvKeyObjLabels),
+     mvpCentroids(frame.mvpCentroids), mDescriptors(frame.mDescriptors.clone()), mDescriptorsRight(frame.mDescriptorsRight.clone()),
      mvpMapPoints(frame.mvpMapPoints), mvbOutlier(frame.mvbOutlier), mnId(frame.mnId),
      mpReferenceKF(frame.mpReferenceKF), mnScaleLevels(frame.mnScaleLevels),
      mfScaleFactor(frame.mfScaleFactor), mfLogScaleFactor(frame.mfLogScaleFactor),
@@ -247,9 +248,9 @@ void Frame::AssignFeaturesToGrid()
 void Frame::ExtractORB(int flag, const cv::Mat &im)
 {
     if(flag==0)
-        (*mpORBextractorLeft)(im,cv::Mat(),mvKeys,mDescriptors);
+        (*mpORBextractorLeft)(im,mvKeys,mDescriptors);
     else
-        (*mpORBextractorRight)(im,cv::Mat(),mvKeysRight,mDescriptorsRight);
+        (*mpORBextractorRight)(im,mvKeysRight,mDescriptorsRight);
 }
 
 void Frame::SetPose(cv::Mat Tcw)
@@ -397,6 +398,60 @@ vector<size_t> Frame::GetFeaturesInMask(const cv::Mat &Mask, const int MaskId)
     return vIndices;
 }
 
+void Frame::AssociateKeyPointsToMask(const cv::Mat &Mask, const int nObjs)
+{
+    for(int i = 0; i < nObjs; i++)
+    {
+        vector<size_t> emptyVec;
+        mvvObjKeys.push_back(emptyVec);
+    }
+    for(size_t i = 0; i < mvKeysUn.size(); i++)
+    {
+        int x = round(mvKeysUn[i].pt.x);
+        int y = round(mvKeysUn[i].pt.y);
+        uchar MaskValue = Mask.at<uchar>(y,x);
+        mvvObjKeys[MaskValue].push_back(i);
+        mvKeyObjLabels.push_back(int(MaskValue));
+    }
+}
+
+cv::Mat Frame::IsolateMaskObject(const cv::Mat &mask, uchar id)
+{
+    int nrows = mask.rows;
+    int ncols = mask.cols;
+    cv::Mat output(nrows,ncols,CV_8UC1);
+    for(int y = 0; y < nrows; y++)
+    {
+        for(int x = 0; x < ncols; x++)
+        {
+            if(mask.at<uchar>(y,x) == id)
+                output.at<uchar>(y,x) = 255;
+            else
+                output.at<uchar>(y,x) = 0;
+        }
+    }
+    return output;
+}
+
+pair<int,int> Frame::FindCentroid(const cv::Mat &img)
+{
+    cv::Moments moment = cv::moments(img,true);
+    int x = round(moment.m10 / moment.m00);
+    int y = round(moment.m01 / moment.m00);
+    // pair<int,int> retPair;
+    // retPair = make_pair(x,y);
+    return make_pair(x,y);
+}
+
+void Frame::FindAllCentroids(const cv::Mat &mask, const int nObjs)
+{
+    for(int i = 0; i < nObjs; i++)
+    {
+        cv::Mat objectImg = IsolateMaskObject(mask,i);
+        mvpCentroids.push_back(FindCentroid(objectImg));
+    }
+}
+
 bool Frame::PosInGrid(const cv::KeyPoint &kp, int &posX, int &posY)
 {
     posX = round((kp.pt.x-mnMinX)*mfGridElementWidthInv);
@@ -416,6 +471,24 @@ void Frame::ComputeBoW()
     {
         vector<cv::Mat> vCurrentDesc = Converter::toDescriptorVector(mDescriptors);
         mpORBvocabulary->transform(vCurrentDesc,mBowVec,mFeatVec,4);
+    }
+}
+
+void Frame::ComputeBowForObjects()
+{
+    // vector<DBoW2::BowVector> ReturnObjectBowVectors;
+    if(mvvObjKeys.empty())
+        return;
+
+    for(size_t i = 0; i < mvvObjKeys.size(); i++)
+    {  
+        DBoW2::BowVector ObjectBowVec;
+        DBoW2::FeatureVector ObjectFeatVec;
+        vector<size_t> ObjectKeys = mvvObjKeys[i];
+        cv::Mat ObjectDescriptors = RowSliceMat(mDescriptors, ObjectKeys);
+        vector<cv::Mat> ObjectDescVector = Converter::toDescriptorVector(ObjectDescriptors);
+        mpORBvocabulary->transform(ObjectDescVector,ObjectBowVec,ObjectFeatVec,6);
+        mvObjBowVecs.push_back(ObjectBowVec);
     }
 }
 
@@ -695,6 +768,21 @@ cv::Mat Frame::UnprojectStereo(const int &i)
     }
     else
         return cv::Mat();
+}
+
+cv::Mat Frame::RowSliceMat(const cv::Mat &input, std::vector<size_t> &rows)
+{
+    int nrows = rows.size();
+    int ncols = input.cols;
+
+    cv::Mat output(nrows,ncols,input.type());
+    for(int i = 0; i < nrows; i++)
+    {
+        int rowIndex = rows[i];
+        cv::Mat desiredRow = input.row(rowIndex);
+        input.row(rowIndex).copyTo(output.row(i));
+    }
+    return output;
 }
 
 } //namespace ORB_SLAM

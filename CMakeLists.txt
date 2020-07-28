@@ -68,6 +68,8 @@ src/KeyFrameDatabase.cc
 src/Sim3Solver.cc
 src/Initializer.cc
 src/Viewer.cc
+src/ObjectTracker.cc
+src/Munkres.cc
 )
 
 target_link_libraries(${PROJECT_NAME}

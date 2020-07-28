@@ -150,6 +150,17 @@ protected:
     void TestKeypointMaskAssociation();
     std::string type2str(int type);
 
+    // Functions for mask object centroids
+    cv::Mat IsolateMaskObject(const cv::Mat &mask, uchar id);
+    std::pair<int, int> FindCentroid(const cv::Mat &img);
+    std::vector< std::pair<int,int> > FindAllCentroids(const cv::Mat &mask, const vector<int> &maskIds);
+    float EuclideanDistance(const std::pair<int,int> &pair1, const std::pair<int,int> &pair2);
+    void VectorSlice(const std::vector<int> &input, const std::vector<size_t> &indices, std::vector<int> &output);
+    void VectorSlice(const std::vector<size_t> &input, const std::vector<size_t> &indices, std::vector<size_t> &output);
+    int VectorMode(const std::vector<int> &input);
+
+
+
     // In case of performing only localization, this flag is true when there are no matches to
     // points in the map. Still tracking will continue if there are enough matches with temporal points.
     // In that case we are doing visual odometry. The system will try to do relocalization to recover

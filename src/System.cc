@@ -264,10 +264,6 @@ cv::Mat System::TrackMonocular(const cv::Mat &im, const double &timestamp)
     mTrackingState = mpTracker->mState;
     mTrackedMapPoints = mpTracker->mCurrentFrame.mvpMapPoints;
     mTrackedKeyPointsUn = mpTracker->mCurrentFrame.mvKeysUn;
-    // cv::KeyPoint tmpKeyPoint0 = mTrackedKeyPointsUn[0];
-    // // cout << tmpKeyPoint0.pt << endl;
-    // cout << "Number keypoints: " << mTrackedKeyPointsUn.size() << endl;
-    // cout << "Number map points: " << mTrackedMapPoints.size() << endl;
 
     ofstream f;
     f.open("Outputs/KeyPoints.txt",ios_base::app);
@@ -343,10 +339,6 @@ cv::Mat System::TrackMonocularMasked(const cv::Mat &im, const cv::Mat &mask, con
     mTrackingState = mpTracker->mState;
     mTrackedMapPoints = mpTracker->mCurrentFrame.mvpMapPoints;
     mTrackedKeyPointsUn = mpTracker->mCurrentFrame.mvKeysUn;
-    // cv::KeyPoint tmpKeyPoint0 = mTrackedKeyPointsUn[0];
-    // // cout << tmpKeyPoint0.pt << endl;
-    // cout << "Number keypoints: " << mTrackedKeyPointsUn.size() << endl;
-    // cout << "Number map points: " << mTrackedMapPoints.size() << endl;
 
     ofstream f;
     f.open("Outputs/KeyPoints.txt",ios_base::app);

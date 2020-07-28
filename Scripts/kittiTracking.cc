@@ -33,11 +33,22 @@ using namespace std;
 void LoadImages(const string &strFile, vector<string> &vstrImageFilenames,
                 vector<double> &vTimestamps);
 
+cv::Mat RowSliceMat(const cv::Mat &input, vector<int> &rows);
+
+void VectorSlice(const vector<int> &input, const vector<size_t> &indices, vector<int> &output)
+{
+    for (auto it = indices.begin(); it < indices.end(); it++)
+    {
+        // cout << input[*it] << " ";
+        output.push_back(input[*it]);
+    }
+}
+
 int main(int argc, char **argv)
 {
-    if(argc != 2)
+    if(argc != 4)
     {
-        cerr << endl << "Usage: ./kittiTracking sequence_id" << endl;
+        cerr << endl << "Usage: ./kittiTracking sequence_id startFrame nFrames" << endl;
         return 1;
     }
 
@@ -63,16 +74,6 @@ int main(int argc, char **argv)
     int nImages = vstrImageFilenames.size();
 
 
-    // cv::Mat mask = cv::imread(maskFile,0);
-    // vector<uint> uniqueObjs = matUnique(mask, true);
-    // cout << mask.at<uint>(0,0) << endl;
-    // cout << "Mask Unique Id's: ";
-    // for(size_t i = 0; i < uniqueObjs.size(); i++)
-    // {
-    //     cout << uniqueObjs[i] << " ";
-    // }
-    // cout << endl;
-
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
     ORB_SLAM2::System SLAM(vocabFile,settingsFile,ORB_SLAM2::System::MONOCULAR,true);
 
@@ -88,15 +89,15 @@ int main(int argc, char **argv)
     cv::Mat im;
     cv::Mat mask;
     cout << "Starting main loop" << endl << endl;
+    int startIdx = atoi(argv[2]);
+    int nFrames = atoi(argv[3]);
 
-    int frameIndices[] = {200,201};
-    for(size_t i=0; i<sizeof(frameIndices); i++)
-    // for(int ni = 0; ni < 50; ni++);
+    // int frameIndices[] = {199,200,201};
+    // for(size_t i=0; i<sizeof(frameIndices) / sizeof(frameIndices[0]); i++)
+    for(int ni = startIdx; ni < startIdx + nFrames; ni++)
     {
         // Read image from file
-
-        int ni = frameIndices[i];
-        // im = cv::imread(string(argv[1])+"/"+vstrImageFilenames[ni],CV_LOAD_IMAGE_UNCHANGED);
+        // int ni = frameIndices[i];
         im = cv::imread(imageDir+sequenceId+"/"+vstrImageFilenames[ni],CV_LOAD_IMAGE_UNCHANGED);
         mask = cv::imread(maskDir+sequenceId+"/"+vstrImageFilenames[ni],0);
         double tframe = vTimestamps[ni];
@@ -125,6 +126,7 @@ int main(int argc, char **argv)
         cout << "Processing frame " << ni << endl;
         // Pass the image to the SLAM system
         SLAM.TrackMonocularMasked(im,mask,tframe);
+        // SLAM.TrackMonocular(im,tframe);
 
 #ifdef COMPILEDWITHC11
         std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
@@ -151,15 +153,15 @@ int main(int argc, char **argv)
     SLAM.Shutdown();
 
     // Tracking time statistics
-    sort(vTimesTrack.begin(),vTimesTrack.end());
-    float totaltime = 0;
-    for(int ni=0; ni<nImages; ni++)
-    {
-        totaltime+=vTimesTrack[ni];
-    }
-    cout << "-------" << endl << endl;
-    cout << "median tracking time: " << vTimesTrack[nImages/2] << endl;
-    cout << "mean tracking time: " << totaltime/nImages << endl;
+    // sort(vTimesTrack.begin(),vTimesTrack.end());
+    // float totaltime = 0;
+    // for(int ni=0; ni<nImages; ni++)
+    // {
+    //     totaltime+=vTimesTrack[ni];
+    // }
+    // cout << "-------" << endl << endl;
+    // // cout << "median tracking time: " << vTimesTrack[nImages/2] << endl;
+    // // cout << "mean tracking time: " << totaltime/nImages << endl;
 
     // Save camera trajectory
     SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
@@ -189,4 +191,19 @@ void LoadImages(const string &strFile, vector<string> &vstrImageFilenames, vecto
             vstrImageFilenames.push_back(sRGB);
         }
     }
+}
+
+cv::Mat RowSliceMat(const cv::Mat &input, vector<int> &rows)
+{
+    int nrows = rows.size();
+    int ncols = input.cols;
+
+    cv::Mat output(nrows,ncols,input.type());
+    for(int i = 0; i < nrows; i++)
+    {
+        int rowIndex = rows[i];
+        cv::Mat desiredRow = input.row(rowIndex);
+        input.row(rowIndex).copyTo(output.row(i));
+    }
+    return output;
 }

@@ -56,7 +56,11 @@ public:
     // Compute the ORB features and descriptors on an image.
     // ORB are dispersed on the image using an octree.
     // Mask is ignored in the current implementation.
+    // Added by Andy: one with mask and one without
     void operator()( cv::InputArray image, cv::InputArray mask,
+      std::vector<cv::KeyPoint>& keypoints,
+      cv::OutputArray descriptors);
+    void operator()( cv::InputArray image,
       std::vector<cv::KeyPoint>& keypoints,
       cv::OutputArray descriptors);
 
@@ -108,6 +112,10 @@ protected:
     std::vector<float> mvInvScaleFactor;    
     std::vector<float> mvLevelSigma2;
     std::vector<float> mvInvLevelSigma2;
+
+    
+    // Get unique values in CV::Mat, used for the mask
+    std::vector<int> MatUnique(const cv::Mat &input, bool sorted);
 };
 
 } //namespace ORB_SLAM

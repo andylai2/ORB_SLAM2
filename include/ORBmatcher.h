@@ -83,8 +83,11 @@ public:
     int Fuse(KeyFrame* pKF, cv::Mat Scw, const std::vector<MapPoint*> &vpPoints, float th, vector<MapPoint *> &vpReplacePoint);
 
     // My stuff
-    //int SearchForMatches(Frame &F1, Frame &F2, vector<int> &vnMatches12, int windowSize);
-    int ThreeFrameMatches(Frame &F1, Frame &F2, Frame &F3, vector<int> &vnMatches12, vector<int> &vnMatches13, int windowSize);
+    int TwoFrameMatches(Frame &F1, Frame &F2, vector<int> &vnMatches12, int windowSize);
+    int ThreeFrameMatches(Frame &F1, Frame &F2, Frame &F3, std::vector<int> &vnMatches12, vector<int> &vnMatches13, int windowSize);
+    std::vector< std::vector<int> > MatchByObjectAll(Frame &F1, Frame &F2, int windowSize);
+    int MatchByObject(Frame &F1, Frame &F2, std::vector<int> &ObjMatches, int windowSize, int ObjId);
+
 
 public:
 

@@ -57,11 +57,16 @@ public:
     // Constructor for Monocular cameras.
     Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
 
+    // Constructor for Monocular cameras with segmentation mask.
+    // Frame(const cv::Mat &imGray, const cv::Mat &mask, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
+
+
     // Extract ORB on the image. 0 for left image and 1 for right image.
     void ExtractORB(int flag, const cv::Mat &im);
 
     // Compute Bag of Words representation.
     void ComputeBoW();
+    void ComputeBowForObjects();
 
     // Set the camera pose.
     void SetPose(cv::Mat Tcw);
@@ -89,6 +94,12 @@ public:
     vector<size_t> GetFeaturesInArea(const float &x, const float  &y, const float  &r, const int minLevel=-1, const int maxLevel=-1) const;
     // Get features that correspond to a particular mask
     vector<size_t> GetFeaturesInMask(const cv::Mat &Mask, const int MaskId);
+    void AssociateKeyPointsToMask(const cv::Mat &Mask, const int nObjs);
+    // Functions for mask object centroids
+    cv::Mat IsolateMaskObject(const cv::Mat &mask, uchar id);
+    std::pair<int, int> FindCentroid(const cv::Mat &img);
+    void FindAllCentroids(const cv::Mat &mask, const int nObjs);
+
 
     // Search a match for each keypoint in the left image to a keypoint in the right image.
     // If there is a match, depth is computed and the right coordinate associated to the left keypoint is stored.
@@ -147,6 +158,16 @@ public:
     // Bag of Words Vector structures.
     DBoW2::BowVector mBowVec;
     DBoW2::FeatureVector mFeatVec;
+
+    // Vector of keypoints associated with objects;
+    std::vector< std::vector<size_t> > mvvObjKeys;
+    std::vector<int> mvKeyObjLabels;
+
+    // Vector of BoW vectors associated to objects
+    std::vector<DBoW2::BowVector> mvObjBowVecs;
+
+    // Vector of centroids associated to objects
+    std::vector< std::pair<int,int> > mvpCentroids;
 
     // ORB descriptor, each row associated to a keypoint.
     cv::Mat mDescriptors, mDescriptorsRight;
@@ -208,6 +229,9 @@ private:
     cv::Mat mtcw;
     cv::Mat mRwc;
     cv::Mat mOw; //==mtwc
+
+    cv::Mat RowSliceMat(const cv::Mat &input, std::vector<size_t> &rows);
+
 };
 
 }// namespace ORB_SLAM

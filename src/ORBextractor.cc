@@ -1040,6 +1040,70 @@ static void computeDescriptors(const Mat& image, vector<KeyPoint>& keypoints, Ma
         computeOrbDescriptor(keypoints[i], image, &pattern[0], descriptors.ptr((int)i));
 }
 
+void ORBextractor::operator()( InputArray _image, vector<KeyPoint>& _keypoints,
+                      OutputArray _descriptors)
+{ 
+    if(_image.empty())
+        return;
+
+    Mat image = _image.getMat();
+    assert(image.type() == CV_8UC1 );
+
+    // Pre-compute the scale pyramid
+    ComputePyramid(image);
+
+    vector < vector<KeyPoint> > allKeypoints;
+    ComputeKeyPointsOctTree(allKeypoints);
+    //ComputeKeyPointsOld(allKeypoints);
+
+    Mat descriptors;
+
+    int nkeypoints = 0;
+    for (int level = 0; level < nlevels; ++level)
+        nkeypoints += (int)allKeypoints[level].size();
+    if( nkeypoints == 0 )
+        _descriptors.release();
+    else
+    {
+        _descriptors.create(nkeypoints, 32, CV_8U);
+        descriptors = _descriptors.getMat();
+    }
+
+    _keypoints.clear();
+    _keypoints.reserve(nkeypoints);
+
+    int offset = 0;
+    for (int level = 0; level < nlevels; ++level)
+    {
+        vector<KeyPoint>& keypoints = allKeypoints[level];
+        int nkeypointsLevel = (int)keypoints.size();
+
+        if(nkeypointsLevel==0)
+            continue;
+
+        // preprocess the resized image
+        Mat workingMat = mvImagePyramid[level].clone();
+        GaussianBlur(workingMat, workingMat, Size(7, 7), 2, 2, BORDER_REFLECT_101);
+
+        // Compute the descriptors
+        Mat desc = descriptors.rowRange(offset, offset + nkeypointsLevel);
+        computeDescriptors(workingMat, keypoints, desc, pattern);
+
+        offset += nkeypointsLevel;
+
+        // Scale keypoint coordinates
+        if (level != 0)
+        {
+            float scale = mvScaleFactor[level]; //getScale(level, firstLevel, scaleFactor);
+            for (vector<KeyPoint>::iterator keypoint = keypoints.begin(),
+                 keypointEnd = keypoints.end(); keypoint != keypointEnd; ++keypoint)
+                keypoint->pt *= scale;
+        }
+        // And add the keypoints to the output
+        _keypoints.insert(_keypoints.end(), keypoints.begin(), keypoints.end());
+    }
+}
+
 void ORBextractor::operator()( InputArray _image, InputArray _mask, vector<KeyPoint>& _keypoints,
                       OutputArray _descriptors)
 { 
@@ -1048,6 +1112,14 @@ void ORBextractor::operator()( InputArray _image, InputArray _mask, vector<KeyPo
 
     Mat image = _image.getMat();
     assert(image.type() == CV_8UC1 );
+
+    if(!_mask.empty())
+    {
+        Mat mask = _mask.getMat();
+        assert(mask.type() == CV_8UC1 );
+        vector<int> maskIds = MatUnique(mask, true);
+    }
+
 
     // Pre-compute the scale pyramid
     ComputePyramid(image);
@@ -1129,6 +1201,29 @@ void ORBextractor::ComputePyramid(cv::Mat image)
         }
     }
 
+}
+
+vector<int> ORBextractor::MatUnique(const cv::Mat &input, bool sorted)
+{
+
+    vector<int> out;
+    for(int y = 0; y < input.rows; y++)
+    {
+        for(int x = 0; x < input.cols; x++)
+        {
+            int val = input.at<uchar>(y,x);
+            if(find(out.begin(), out.end(), val) == out.end() )
+            {
+                if(val <= 255)
+                {
+                    out.push_back(val);
+                }
+            }
+        }
+    }
+    if(sorted)
+        sort(out.begin(),out.end());
+    return out;
 }
 
 } //namespace ORB_SLAM

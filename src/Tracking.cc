@@ -29,11 +29,15 @@
 #include"Converter.h"
 #include"Map.h"
 #include"Initializer.h"
+#include"Helper.h"
+#include"Munkres.h"
 
 #include"Optimizer.h"
 #include"PnPsolver.h"
 
 #include<iostream>
+#include<iomanip>
+#include<math.h>
 
 #include<mutex>
 
@@ -309,7 +313,7 @@ void Tracking::Track()
     // Get Map Mutex -> Map cannot be changed
     unique_lock<mutex> lock(mpMap->mMutexMapUpdate);
 
-    TestKeypointMaskAssociation();
+    TestKeypointMaskAssociation();   
 
 
     if(mState==NOT_INITIALIZED)
@@ -353,12 +357,79 @@ void Tracking::Track()
                 /*
                 Andy's Code Block
                 */
+                ORBmatcher myMatcher(0.7,false);
+
+                vector< vector<int> > vvObjectMatches;
+                vector< pair<int,int> > vLastCentroids = mLastFrame.mvpCentroids;
+                vector< pair<int,int> > vCurrentCentroids = mCurrentFrame.mvpCentroids;
+                int nObjsLast = vLastCentroids.size() - 1;
+                int nObjsCurrent = vCurrentCentroids.size() - 1;
+                float distsData[nObjsLast][nObjsCurrent];
+                vector<int> TwoFrameMatch;
+                cout << "Total matches: " << myMatcher.TwoFrameMatches(mLastFrame,mCurrentFrame,TwoFrameMatch,120) << endl;
+
+                for(size_t i = 1; i < mLastFrame.mvvObjKeys.size(); i++)
+                {
+                    cout << endl;
+                    cout << "Object " << i << endl;
+                    vector<int> ObjMatches;
+                    int nmatches = myMatcher.MatchByObject(mLastFrame,mCurrentFrame,ObjMatches,80,i);
+                    cout << "nmatches: " << nmatches;
+                    if(nmatches == 0)
+                    {
+                        int nmatches = myMatcher.MatchByObject(mLastFrame,mCurrentFrame,ObjMatches,120,i);
+                        cout << ", " << nmatches;
+                    }
+                    cout << endl;
+                    int mode = VectorMode(ObjMatches);
+                    cout << "Mode: " << mode << endl;
+                    vvObjectMatches.push_back(ObjMatches);
+                    float closest = 9999.0;
+                    int match = -1;
+                    for(size_t j = 1; j < vCurrentCentroids.size(); j++)
+                    {
+                        float dist = EuclideanDistance(vLastCentroids[i],vCurrentCentroids[j]);
+                        distsData[i-1][j-1] = dist;
+                        if(dist < closest)
+                        {
+                            closest = dist;
+                            match = j;
+                        }
+                    }
+                    cout << "Closest centroid: " << match << endl;
+                }
+                cv::Mat dists(nObjsLast,nObjsCurrent,CV_32FC1,distsData);
+                Munkres m;
+                vector<pair<int,int>> res = m.compute(dists);
+                cout << "Munkres matches:" << endl;
+                for(size_t i = 0; i < res.size(); i++)
+                {
+                    cout << res[i].first+1 << " : " << res[i].second+1 << endl;
+                }
+
+                // cout << "Calculating scores between frame " << mLastFrame.mnId << " and " << mCurrentFrame.mnId << endl;
+                // vector<DBoW2::BowVector> vLastObjBowVecs = mLastFrame.mvObjBowVecs;
+                // vector<DBoW2::BowVector> vCurrentObjBowVecs = mCurrentFrame.mvObjBowVecs;
+                // for(int i = 1; i < vLastObjBowVecs.size(); i++)
+                // {
+                //     float best = 9999;
+                //     int match = -1;
+                //     for(int j = 1; j < vCurrentObjBowVecs.size(); j++)
+                //     {
+                //         float score = mpORBVocabulary->score(vLastObjBowVecs[i],vCurrentObjBowVecs[j]);
+                //         float dist = EuclideanDistance(vLastCentroids[i],vCurrentCentroids[j]);
+                //         float cost = dist - 100*score;
+                //         if(cost < best)
+                //         {
+                //             best = cost;
+                //             match = j;
+                //         }
+                //         cout << fixed << setw(8) << setprecision(5) << setfill(' ') << score << " ";
+                //     }
+                //     cout << "Match with " << match << endl;
+                // }
 
                 // vector<int> vTmpMatchLast(mLastFrame.mvKeysUn.size(),-1);
-                // vector<int> vTmpMatchCurr(mLastFrame.mvKeysUn.size(),-1);
-
-                // ORBmatcher myMatcher(0.9,false);
-                // myMatcher.ThreeFrameMatches(mLastLastFrame,mLastFrame,mCurrentFrame,vTmpMatchLast,vTmpMatchCurr,10);
 
                 // cout << "vTmpMatchLast: ";
                 // for(size_t i = 0; i < vTmpMatchLast.size();i++)
@@ -1721,7 +1792,7 @@ vector<int> Tracking::MatUnique(const cv::Mat &input, bool sorted)
             int val = input.at<uchar>(y,x);
             if(find(out.begin(), out.end(), val) == out.end() )
             {
-                if(val <= 255)
+                if(val <= 255) // is this if statement still necessary?
                 {
                     out.push_back(val);
                 }
@@ -1736,29 +1807,95 @@ vector<int> Tracking::MatUnique(const cv::Mat &input, bool sorted)
 void Tracking::TestKeypointMaskAssociation()
 {
     vector<int> maskIds = MatUnique(mMask, true);
-    ofstream f;
-    f.open("Outputs/MaskKeyPoints.txt",ios_base::app);
-    for(size_t i = 1; i < maskIds.size(); i++)
-    {
-        vector<size_t> vObjKeys = mCurrentFrame.GetFeaturesInMask(mMask,maskIds[i]);
-        cout << "MaskID " << maskIds[i] << " with " << vObjKeys.size() << " keypoints" << endl;
-        if(vObjKeys.empty())
-            cout << "No Keypoints matched to ID" << endl;
-        for(size_t j = 0; j < vObjKeys.size(); j++)
-        {
-            f << vObjKeys[j] << " ";
-        }
-        f<< "; ";
-    }
-    f << endl;
-    f.close();
-    // vector<size_t> vObjKeys = mCurrentFrame.GetFeaturesInMask(mMask,maskIds[1]);
-    // cout << "MaskID: " << maskIds[1] << endl;
-    // for(size_t i = ; i < vObjKeys.size();i++)
+    // ofstream f;
+    // f.open("Outputs/MaskKeyPoints.txt",ios_base::app);
+    mCurrentFrame.AssociateKeyPointsToMask(mMask, maskIds.size());
+    // for(size_t i = 1; i < vvMaskKeys.size(); i++)
     // {
-    //     cout << vObjKeys[i] << " ";
+    //     // vector<currMaskKeys = vvMaskKeys[i];
+    //     // cout << "MaskID " << maskIds[i] << " with " << vvMaskKeys[i].size() << " keypoints" << endl;
+    //     for(size_t j = 0; j < vvMaskKeys[i].size(); j++)
+    //         f << vvMaskKeys[i][j] << " ";
+    //     f << "; ";
     // }
-    // cout << endl;
+    // f << endl;
+    // f.close();
+    mCurrentFrame.ComputeBowForObjects();
+    mCurrentFrame.FindAllCentroids(mMask, maskIds.size());
+
+}
+
+cv::Mat Tracking::IsolateMaskObject(const cv::Mat &mask, uchar id)
+{
+    int nrows = mask.rows;
+    int ncols = mask.cols;
+    cv::Mat output(nrows,ncols,CV_8UC1);
+    for(int y = 0; y < nrows; y++)
+    {
+        for(int x = 0; x < ncols; x++)
+        {
+            if(mask.at<uchar>(y,x) == id)
+                output.at<uchar>(y,x) = 255;
+            else
+                output.at<uchar>(y,x) = 0;
+        }
+    }
+    return output;
+}
+
+pair<int,int> Tracking::FindCentroid(const cv::Mat &img)
+{
+    cv::Moments moment = cv::moments(img,true);
+    int x = round(moment.m10 / moment.m00);
+    int y = round(moment.m01 / moment.m00);
+    // pair<int,int> retPair;
+    // retPair = make_pair(x,y);
+    return make_pair(x,y);
+}
+
+vector< pair<int,int> > Tracking::FindAllCentroids(const cv::Mat &mask, const vector<int> &maskIds)
+{
+    vector< pair<int,int> > centroids;
+    for(size_t i = 0; i < maskIds.size(); i++)
+    {
+        int id = maskIds[i];
+        cv::Mat objectImg = IsolateMaskObject(mask,id);
+        centroids.push_back(FindCentroid(objectImg));
+    }
+    return centroids;
+}
+
+float Tracking::EuclideanDistance(const pair<int,int> &pair1, const pair<int,int> &pair2)
+{
+    int x1 = pair1.first;
+    int y1 = pair1.second;
+    int x2 = pair2.first;
+    int y2 = pair2.second; 
+    return sqrt( pow((x1 - x2),2) + pow((y1 - y2),2));
+}
+
+void Tracking::VectorSlice(const vector<int> &input, const vector<size_t> &indices, vector<int> &output)
+{
+    for (auto it = indices.begin(); it < indices.end(); it++)
+        output.push_back(input[*it]);
+}
+void Tracking::VectorSlice(const vector<size_t> &input, const vector<size_t> &indices, vector<size_t> &output)
+{
+    for (auto it = indices.begin(); it < indices.end(); it++)
+        output.push_back(input[*it]);
+}
+
+int Tracking::VectorMode(const vector<int> &input)
+{
+    vector<int> histogram(100,0);
+    for(auto it = input.begin(); it != input.end(); it++)
+    {
+        if(*it > 0)
+        {
+            ++histogram[*it];
+        }
+    }
+    return max_element(histogram.begin(),histogram.end()) - histogram.begin();
 }
 
 } //namespace ORB_SLAM
